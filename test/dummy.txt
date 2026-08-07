@@ -1,1 +1,1 @@
-Hello from ESP32-P4-WIFI6-DEV-KIT! File overwritten cleanly.
+{"sensor_reading":22.5,"overwritten":true}
