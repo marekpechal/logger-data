@@ -1,1 +1,0 @@
-{"sensor_reading":22.5,"overwritten":true}
