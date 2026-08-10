@@ -13,7 +13,6 @@ values = []
 for fname in sorted(os.listdir(DATA_PATH)):
     with open(os.path.join(DATA_PATH, fname), "r") as f:
         data = json.load(f)
-    print(data)
 
     if isinstance(data, list):
         new_timestamps = [entry["unix_timestamp"] for entry in data if "unix_timestamp" in entry]
