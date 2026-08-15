@@ -1,6 +1,7 @@
 import os, json
 import matplotlib.pyplot as plt
 import datetime
+import numpy as np
 
 DATA_PATH = os.path.join(os.path.dirname(__file__), '../data/')
 
@@ -27,5 +28,30 @@ for fname in sorted(os.listdir(DATA_PATH)):
     timestamps += new_timestamps
     values += new_values
 
-plt.plot([datetime.datetime.fromtimestamp(t) for t in timestamps], values, ".")
+def sliding_window_avg(arr, f, step_size=5, window_length=10, post_map=None):
+    if not post_map:
+        def post_map(x):
+            return x
+    return np.array([post_map(f(arr[i:i+window_length]))
+        for i in range(0, len(arr)-window_length+1, step_size)])
+
+X = sliding_window_avg(timestamps, np.median, post_map=datetime.datetime.fromtimestamp)
+Y = 50.0*sliding_window_avg(values, np.median)*0.001
+dates = np.array(
+    sorted(set(datetime.datetime.strftime(x, "%Y-%m-%d") for x in X)))
+
+plt.figure(figsize=(12, 3*len(dates)))
+for i, d in enumerate(dates):
+    plt.subplot(len(dates), 1, i+1)
+    dt1 = datetime.datetime.strptime(d, "%Y-%m-%d")
+    dt2 = dt1 + datetime.timedelta(days=1)
+    mask = np.logical_and(dt1 <= X, X < dt2)
+    plt.plot(X[mask], Y[mask], "-", color=(0.0, 0.3, 0.8, 0.7))
+    plt.title(d)
+    plt.xlabel("Time")
+    plt.ylabel("Acoustic\nlevel [dB]")
+    plt.xlim((dt1, dt2))
+    plt.ylim((35, 65))
+    plt.grid()
+plt.tight_layout()
 plt.show()
