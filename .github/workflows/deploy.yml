@@ -1,0 +1,49 @@
+name: Process database data
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write    # CRITICAL: Changed from 'read' to 'write' to allow pushes
+
+concurrency:
+  group: "data-processing"
+  cancel-in-progress: false
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Plot Generation Script
+        run: python .github/scripts/plot_acoustic_level_data.py
+
+      - name: Commit and Push Generated Data
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          git add digest/
+
+          # Only commit and push if there are actual changes to prevent empty commit errors
+          if git diff --staged --quiet; then
+            echo "No changes detected in digest directory. Skipping push."
+          else
+            git commit -m "chore: auto-update acoustic level data plots [skip ci]"
+            git push origin main
+          fi
