@@ -2,12 +2,14 @@
 import datetime
 import json
 import os
+import zoneinfo
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/')
 DIGEST_PATH = os.path.join(os.path.dirname(__file__), '../../digest/')
+tz = zoneinfo.ZoneInfo("Europe/Zurich")
 os.makedirs(DIGEST_PATH, exist_ok=True)
 
 def b64str_to_12bitIntList(s):
@@ -40,18 +42,30 @@ def sliding_window_avg(arr, f, step_size=5, window_length=10, post_map=None):
     return np.array([post_map(f(arr[i:i+window_length]))
         for i in range(0, len(arr)-window_length+1, step_size)])
 
-X = sliding_window_avg(timestamps, np.median, post_map=datetime.datetime.fromtimestamp)
-Y = 50.0*sliding_window_avg(values, np.median)*0.001
+X = sliding_window_avg(timestamps, np.median,
+    post_map=lambda t: datetime.datetime.fromtimestamp(t, tz=tz))
+Y = 50.0*sliding_window_avg(values, np.median,
+    )*0.001
 dates = np.array(
     sorted(set(datetime.datetime.strftime(x, "%Y-%m-%d") for x in X)))
+
+Xf = sliding_window_avg(timestamps, np.median, window_length=60, step_size=30,
+    post_map=lambda t: datetime.datetime.fromtimestamp(t, tz=tz))
+Yf = 50.0*sliding_window_avg(values, np.median, window_length=60, step_size=30,
+    )*0.001
 
 plt.figure(figsize=(12, 3*len(dates)))
 for i, d in enumerate(dates):
     plt.subplot(len(dates), 1, i+1)
-    dt1 = datetime.datetime.strptime(d, "%Y-%m-%d")
+    dt1 = datetime.datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=tz)
     dt2 = dt1 + datetime.timedelta(days=1)
+
     mask = np.logical_and(dt1 <= X, X < dt2)
-    plt.plot(X[mask], Y[mask], "-", color=(0.0, 0.3, 0.8, 0.7))
+    plt.plot(X[mask], Y[mask], "-", color=(0.0, 0.3, 0.8, 0.2))
+
+    mask = np.logical_and(dt1 <= Xf, Xf < dt2)
+    plt.plot(Xf[mask], Yf[mask], "-", color=(0.8, 0.5, 0.2, 0.7))
+
     plt.title(d)
     plt.xlabel("Time")
     plt.ylabel("Acoustic\nlevel [dB]")
