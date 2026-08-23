@@ -28,10 +28,13 @@ for fname in sorted(os.listdir(DATA_PATH)):
     elif isinstance(data, dict):
         new_values = b64str_to_12bitIntList(data["data"])
         N = len(new_values)
-        dt = (data["tstamp_end"]-data["tstamp_start"])/N
+        T = data["tstamp_end"]-data["tstamp_start"]
+        dt = T/N
         new_timestamps = [data["tstamp_start"]+dt*i for i in range(N)]
     else:
         raise TypeError(f"invalid type {type(data)}")
+    if not 3500 < T < 3700:
+        continue
     timestamps += new_timestamps
     values += new_values
 
@@ -47,50 +50,55 @@ X_full = sliding_window_avg(timestamps, np.median,
 Y_full = 50.0*sliding_window_avg(values, np.median,
     )*0.001
 dates = np.array(
-    sorted(set(datetime.datetime.strftime(x, "%Y-%m-%d") for x in X_full)))
+    sorted(set(x.isocalendar() for x in X_full)))
 
 Xf_full = sliding_window_avg(timestamps, np.median, window_length=60, step_size=30,
     post_map=lambda t: datetime.datetime.fromtimestamp(t, tz=tz))
 Yf_full = 50.0*sliding_window_avg(values, np.median, window_length=60, step_size=30,
     )*0.001
 
-plt.figure(figsize=(12, 3*len(dates)))
-for i, d in enumerate(dates):
-    plt.subplot(len(dates), 1, i+1)
-    dt1 = datetime.datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=tz)
-    dt2 = dt1 + datetime.timedelta(days=1)
-    X = X_full.copy()
-    Y = Y_full.copy()
-    Xf = Xf_full.copy()
-    Yf = Yf_full.copy()
+weeks = sorted(set((y, w) for y, w, d in dates))
 
-    mask = np.logical_and(dt1 <= X, X < dt2)
-    X = X[mask]
-    Y = Y[mask]
-    mask = np.logical_or(
-        X[1:-1]-X[:-2]>datetime.timedelta(seconds=10.0),
-        X[2:]-X[1:-1]>datetime.timedelta(seconds=10.0))
-    X = X[1:-1]
-    Y = Y[1:-1]
-    Y[mask] = np.nan
-    plt.plot(X, Y, "-", color=(0.0, 0.3, 0.8, 0.2))
+for week in weeks:
+    plt.figure(figsize=(12, 21))
+    for i, d in enumerate(dates):
+        if tuple(d[:2]) != tuple(week):
+            continue
+        plt.subplot(7, 1, d[2])
+        dt1 = datetime.datetime.fromisocalendar(*d).replace(tzinfo=tz)
+        dt2 = dt1 + datetime.timedelta(days=1)
+        X = X_full.copy()
+        Y = Y_full.copy()
+        Xf = Xf_full.copy()
+        Yf = Yf_full.copy()
 
-    mask = np.logical_and(dt1 <= Xf, Xf < dt2)
-    Xf = Xf[mask]
-    Yf = Yf[mask]
-    mask = np.logical_or(
-        Xf[1:-1]-Xf[:-2]>datetime.timedelta(seconds=60.0),
-        Xf[2:]-Xf[1:-1]>datetime.timedelta(seconds=60.0))
-    Xf = Xf[1:-1]
-    Yf = Yf[1:-1]
-    Yf[mask] = np.nan
-    plt.plot(Xf, Yf, "-", color=(0.8, 0.5, 0.2, 0.7))
+        mask = np.logical_and(dt1 <= X, X < dt2)
+        X = X[mask]
+        Y = Y[mask]
+        mask = np.logical_or(
+            X[1:-1]-X[:-2]>datetime.timedelta(seconds=10.0),
+            X[2:]-X[1:-1]>datetime.timedelta(seconds=10.0))
+        X = X[1:-1]
+        Y = Y[1:-1]
+        Y[mask] = np.nan
+        plt.plot(X, Y, "-", color=(0.0, 0.3, 0.8, 0.2))
 
-    plt.title(d)
-    plt.xlabel("Time")
-    plt.ylabel("Acoustic\nlevel [dB]")
-    plt.xlim((dt1, dt2))
-    plt.ylim((35, 65))
-    plt.grid()
-plt.tight_layout()
-plt.savefig(os.path.join(DIGEST_PATH, "plot.png"))
+        mask = np.logical_and(dt1 <= Xf, Xf < dt2)
+        Xf = Xf[mask]
+        Yf = Yf[mask]
+        mask = np.logical_or(
+            Xf[1:-1]-Xf[:-2]>datetime.timedelta(seconds=60.0),
+            Xf[2:]-Xf[1:-1]>datetime.timedelta(seconds=60.0))
+        Xf = Xf[1:-1]
+        Yf = Yf[1:-1]
+        Yf[mask] = np.nan
+        plt.plot(Xf, Yf, "-", color=(0.8, 0.5, 0.2, 0.7))
+
+        plt.title(dt1.strftime("%a %d-%m-%Y"))
+        plt.xlabel("Time")
+        plt.ylabel("Acoustic\nlevel [dB]")
+        plt.xlim((dt1, dt2))
+        plt.ylim((35, 65))
+        plt.grid()
+    plt.tight_layout()
+    plt.savefig(os.path.join(DIGEST_PATH, f"plot-{week[0]}-W{week[1]}.png"))
